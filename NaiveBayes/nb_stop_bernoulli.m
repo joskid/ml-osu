@@ -1,0 +1,84 @@
+clear % Loading train data and setting number of words and labels
+vocab = importdata('vocabulary.txt');
+stop = importdata('stopwords');
+
+no_of_words = length(vocab);
+newslabels = importdata('newsgrouplabels.txt');
+no_of_labels = length(newslabels);
+
+% Loading training data
+train_data = load('train.data');
+train_labels = load('train.label');
+no_of_docs = length(train_labels);
+
+%Removing stopwords
+[sharedVals,idxsWordIds] = intersect(vocab,stop);
+[sharedVals,idxsDocIds] = intersect(train_data(:,2),idxsWordIds);
+train_data(idxsDocIds,3) = 0;
+
+% setting laplacian coefficient = 1
+laplacian = 0.01;
+
+%Calculating priors
+priors = zeros(no_of_labels,1);
+for i=1:no_of_labels
+   priors(i) = ((length(find(train_labels == i)) + laplacian)/(length(train_labels) + (no_of_labels * laplacian))); 
+end
+
+%Building (Words) vs (Labels) matrix
+words_labels = zeros(no_of_words,no_of_labels);
+
+for i=1:no_of_labels
+   docIds = find(train_labels == i);
+   for j=1:numel(docIds)
+       index = docIds(j);
+       indices = find(train_data(:,1) == index);
+       words_labels(train_data(indices,2),i) = words_labels(train_data(indices,2),i) + 1;
+   end
+end
+
+%load test datartest_data(:,2)
+test_data = load('test.data');
+test_labels = load('test.label');
+test_docs_length = length(test_labels);
+
+
+%Calculating posteriors
+posteriors_combined = zeros(test_docs_length,no_of_labels);
+
+for i = 1:test_docs_length
+    indices = find(test_data(:,1) == i);    
+    wordIds = test_data(indices,2);
+    for j=1:no_of_labels
+        posteriors_combined(i,j) = sum(log((words_labels(wordIds,j) + laplacian)/(numel(find(train_labels == j)) + (laplacian * no_of_words))) + log(priors(j))) ;
+        %posteriors_combined(i,j) = sum(((words_labels(wordIds,j) + laplacian)/(numel(find(train_labels == j)) + (laplacian * no_of_words))) * (priors(j))) ;
+    end
+end
+
+
+z = 1:length(test_labels);
+[dummy,posteriors] = max((posteriors_combined(z,:)),[],2);
+
+errors = posteriors(:)-test_labels(:);
+errors(errors == 0) = [];
+no_of_errors = length(errors);
+
+classifier_accuracy = ((1-(no_of_errors/length(test_labels)))*100);
+
+fprintf('Classifier accuracy is %d %',classifier_accuracy);
+
+confusion_matrix = zeros(no_of_labels,no_of_labels);
+
+for i=1:length(test_labels)
+    if posteriors(i) ~= test_labels(i)
+        confusion_matrix(test_labels(i),posteriors(i)) = confusion_matrix(test_labels(i),posteriors(i)) + 1;
+    end
+end
+
+
+
+
+
+
+
+
